@@ -1,0 +1,22 @@
+{% extends 'paginas_base/base.html' %}
+
+{% block titulo %}Página Nuevo Estudiante {% endblock titulo %}
+{% block contenido %}
+    <div class="card">
+        <div class="card-header">
+            Crear Nuevo Estudiate
+        </div>
+        <div class="card-body">
+            <h4 class="card-title">Estudiate</h4>
+            {% include  'Crud/form.html' %}
+            
+        </div>
+        <div class="card-footer text-muted">
+            
+        </div>
+    </div>
+    
+   
+   
+
+{% endblock contenido %}

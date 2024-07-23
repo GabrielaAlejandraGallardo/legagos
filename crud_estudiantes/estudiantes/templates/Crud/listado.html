@@ -1,0 +1,62 @@
+{% extends 'paginas_base/base.html' %}
+
+{% block titulo %}Página Lista de Estudiante {% endblock titulo %}
+{% block contenido %}
+    <div class="card">
+        <div class="card-header">
+            <a name="btnuevo" id="btnuevo" class="btn btn-primary" href="{% url 'crear' %}" role="button">Nuevo estudiante</a>
+        </div>
+        <div class="card-body">
+            <h4 class="card-title">Clientes</h4>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Id</th>
+                        <th>Nombre</th>
+                        <th>Ap</th>
+                        <th>Am</th>
+                        <th>Dirección</th>
+                        <th>Telefono</th>
+                        <th>Foto dni</th>
+                        <th>Foto isa</th>
+                        <th>Foto cus</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {%  for e in estudiante %}
+                    <tr>
+                        <td>{{ e.id }}</td>
+                        <td>{{ e.nom }}</td>
+                        <td>{{ e.ap }}</td>
+                        <td>{{ e.am }}</td>
+                        <td>{{ e.dir }}</td>
+                        <td>{{ e.tel }}</td>
+                       
+                        
+
+                        
+
+                        <td> <img src="{{ e.dni.url }}" height="60">  </td>
+                        <td> <img src="{{ e.isa.url }}" height="60">  </td>   
+                        <td><img  src="{{ e.cus.url }}" height="60">   </td>
+                        <td>
+                            <a name="bteditar" id="bteditar" class="btn btn-info" href="{% url 'editar' e.id %}" role="button">Editar</a>
+                            <a name="bteliminar" id="bteliminar" class="btn btn-danger" href="{% url 'eliminar' e.id %}" role="button">Eliminar</a>
+                        </td>                        
+                    </tr>
+                    {% endfor %}
+                    
+                </tbody>
+            </table>
+            
+            
+        </div>
+        <div class="card-footer text-muted">
+        
+        </div>
+    </div>
+   
+   
+
+{% endblock contenido %}
