@@ -38,8 +38,24 @@
                         
 
                         <td> <img src="{{ e.dni.url }}" height="60">  </td>
-                        <td> <img src="{{ e.isa.url }}" height="60">  </td>   
-                        <td><img  src="{{ e.cus.url }}" height="60">   </td>
+                
+                        <td>  
+                            {% if e.isa %}  
+                                <a href="{{ e.isa.url }}" target="_blank">Ver ISA</a>  
+                            {% else %}  
+                                No disponible  
+                            {% endif %}  
+                        </td>  
+                        <td>  
+                            {% if e.cus %}  
+                                <a href="{{ e.cus.url }}" target="_blank">Ver CUS</a>  
+                            {% else %}  
+                                No disponible  
+                            {% endif %}  
+                        </td>  
+
+
+
                         <td>
                             <a name="bteditar" id="bteditar" class="btn btn-info" href="{% url 'editar' e.id %}" role="button">Editar</a>
                             <a name="bteliminar" id="bteliminar" class="btn btn-danger" href="{% url 'eliminar' e.id %}" role="button">Eliminar</a>
