@@ -13,7 +13,7 @@ import warnings
 from . import _auth
 
 from .charset import charset_by_name, charset_by_id
-from .constants import CLIENT, COMMAND, CR, FIELD_TYPE, SERVER_STATUS
+from .constants import CLIENT, COMMAND, CR, ER, FIELD_TYPE, SERVER_STATUS
 from . import converters
 from .cursors import Cursor
 from .optionfile import Parser
@@ -61,7 +61,7 @@ TEXT_TYPES = {
 
 DEFAULT_CHARSET = "utf8mb4"
 
-MAX_PACKET_LEN = 2 ** 24 - 1
+MAX_PACKET_LEN = 2**24 - 1
 
 
 def _pack_int24(n):
@@ -84,8 +84,7 @@ def _lenenc_int(i):
         return b"\xfe" + struct.pack("<Q", i)
     else:
         raise ValueError(
-            "Encoding %x is larger than %x - no representation in LengthEncodedInteger"
-            % (i, (1 << 64))
+            f"Encoding {i:x} is larger than {1 << 64:x} - no representation in LengthEncodedInteger"
         )
 
 
@@ -99,18 +98,21 @@ class Connection:
     Establish a connection to the MySQL database. Accepts several
     arguments:
 
-    :param host: Host where the database server is located
-    :param user: Username to log in as
+    :param host: Host where the database server is located.
+    :param user: Username to log in as.
     :param password: Password to use.
     :param database: Database to use, None to not use a particular one.
     :param port: MySQL port to use, default is usually OK. (default: 3306)
     :param bind_address: When the client has multiple network interfaces, specify
         the interface from which to connect to the host. Argument can be
         a hostname or an IP address.
-    :param unix_socket: Optionally, you can use a unix socket rather than TCP/IP.
-    :param read_timeout: The timeout for reading from the connection in seconds (default: None - no timeout)
-    :param write_timeout: The timeout for writing to the connection in seconds (default: None - no timeout)
-    :param charset: Charset you want to use.
+    :param unix_socket: Use a unix socket rather than TCP/IP.
+    :param read_timeout: The timeout for reading from the connection in seconds.
+        (default: None - no timeout)
+    :param write_timeout: The timeout for writing to the connection in seconds.
+        (default: None - no timeout)
+    :param str charset: Charset to use.
+    :param str collation: Collation name to use.
     :param sql_mode: Default SQL_MODE to use.
     :param read_default_file:
         Specifies  my.cnf file to read these parameters from under the [client] section.
@@ -124,16 +126,17 @@ class Connection:
     :param client_flag: Custom flags to send to MySQL. Find potential values in constants.CLIENT.
     :param cursorclass: Custom cursor class to use.
     :param init_command: Initial SQL statement to run when connection is established.
-    :param connect_timeout: Timeout before throwing an exception when connecting.
+    :param connect_timeout: The timeout for connecting to the database in seconds.
         (default: 10, min: 1, max: 31536000)
-    :param ssl:
-        A dict of arguments similar to mysql_ssl_set()'s parameters.
-    :param ssl_ca: Path to the file that contains a PEM-formatted CA certificate
-    :param ssl_cert: Path to the file that contains a PEM-formatted client certificate
-    :param ssl_disabled: A boolean value that disables usage of TLS
-    :param ssl_key: Path to the file that contains a PEM-formatted private key for the client certificate
-    :param ssl_verify_cert: Set to true to check the validity of server certificates
-    :param ssl_verify_identity: Set to true to check the server's identity
+    :param ssl: A dict of arguments similar to mysql_ssl_set()'s parameters or an ssl.SSLContext.
+    :param ssl_ca: Path to the file that contains a PEM-formatted CA certificate.
+    :param ssl_cert: Path to the file that contains a PEM-formatted client certificate.
+    :param ssl_disabled: A boolean value that disables usage of TLS.
+    :param ssl_key: Path to the file that contains a PEM-formatted private key for
+        the client certificate.
+    :param ssl_key_password: The password for the client certificate private key.
+    :param ssl_verify_cert: Set to true to check the server certificate's validity.
+    :param ssl_verify_identity: Set to true to check the server's identity.
     :param read_default_group: Group to read from in the configuration file.
     :param autocommit: Autocommit mode. None means use server default. (default: False)
     :param local_infile: Boolean to enable the use of LOAD DATA LOCAL command. (default: False)
@@ -148,8 +151,8 @@ class Connection:
         (if no authenticate method) for returning a string from the user. (experimental)
     :param server_public_key: SHA256 authentication plugin public key value. (default: None)
     :param binary_prefix: Add _binary prefix on bytes and bytearray. (default: False)
-    :param compress: Not supported
-    :param named_pipe: Not supported
+    :param compress: Not supported.
+    :param named_pipe: Not supported.
     :param db: **DEPRECATED** Alias for database.
     :param passwd: **DEPRECATED** Alias for password.
 
@@ -172,6 +175,7 @@ class Connection:
         unix_socket=None,
         port=0,
         charset="",
+        collation=None,
         sql_mode=None,
         read_default_file=None,
         conv=None,
@@ -197,6 +201,7 @@ class Connection:
         ssl_cert=None,
         ssl_disabled=None,
         ssl_key=None,
+        ssl_key_password=None,
         ssl_verify_cert=None,
         ssl_verify_identity=None,
         compress=None,  # not supported
@@ -205,12 +210,12 @@ class Connection:
         db=None,  # deprecated
     ):
         if db is not None and database is None:
-            # We will raise warining in 2022 or later.
+            # We will raise warning in 2022 or later.
             # See https://github.com/PyMySQL/PyMySQL/issues/939
             # warnings.warn("'db' is deprecated, use 'database'", DeprecationWarning, 3)
             database = db
         if passwd is not None and not password:
-            # We will raise warining in 2022 or later.
+            # We will raise warning in 2022 or later.
             # See https://github.com/PyMySQL/PyMySQL/issues/939
             # warnings.warn(
             #    "'passwd' is deprecated, use 'password'", DeprecationWarning, 3
@@ -258,7 +263,7 @@ class Connection:
             if not ssl:
                 ssl = {}
             if isinstance(ssl, dict):
-                for key in ["ca", "capath", "cert", "key", "cipher"]:
+                for key in ["ca", "capath", "cert", "key", "password", "cipher"]:
                     value = _config("ssl-" + key, ssl.get(key))
                     if value:
                         ssl[key] = value
@@ -277,6 +282,8 @@ class Connection:
                     ssl["cert"] = ssl_cert
                 if ssl_key is not None:
                     ssl["key"] = ssl_key
+                if ssl_key_password is not None:
+                    ssl["password"] = ssl_key_password
             if ssl:
                 if not SSL_ENABLED:
                     raise NotImplementedError("ssl module not found")
@@ -306,6 +313,7 @@ class Connection:
         self._write_timeout = write_timeout
 
         self.charset = charset or DEFAULT_CHARSET
+        self.collation = collation
         self.use_unicode = use_unicode
 
         self.encoding = charset_by_name(self.charset).encoding
@@ -340,8 +348,8 @@ class Connection:
 
         self._connect_attrs = {
             "_client_name": "pymysql",
-            "_pid": str(os.getpid()),
             "_client_version": VERSION_STRING,
+            "_pid": str(os.getpid()),
         }
 
         if program_name:
@@ -384,7 +392,9 @@ class Connection:
             else:
                 ctx.verify_mode = ssl.CERT_NONE if hasnoca else ssl.CERT_REQUIRED
         if "cert" in sslp:
-            ctx.load_cert_chain(sslp["cert"], keyfile=sslp.get("key"))
+            ctx.load_cert_chain(
+                sslp["cert"], keyfile=sslp.get("key"), password=sslp.get("password")
+            )
         if "cipher" in sslp:
             ctx.set_ciphers(sslp["cipher"])
         ctx.options |= ssl.OP_NO_SSLv2
@@ -415,11 +425,11 @@ class Connection:
 
     @property
     def open(self):
-        """Return True if the connection is open"""
+        """Return True if the connection is open."""
         return self._sock is not None
 
     def _force_close(self):
-        """Close connection without QUIT message"""
+        """Close connection without QUIT message."""
         if self._sock:
             try:
                 self._sock.close()
@@ -442,13 +452,16 @@ class Connection:
     def _read_ok_packet(self):
         pkt = self._read_packet()
         if not pkt.is_ok_packet():
-            raise err.OperationalError(2014, "Command Out of Sync")
+            raise err.OperationalError(
+                CR.CR_COMMANDS_OUT_OF_SYNC,
+                "Command Out of Sync",
+            )
         ok = OKPacketWrapper(pkt)
         self.server_status = ok.server_status
         return ok
 
     def _send_autocommit_mode(self):
-        """Set whether or not to commit after every execute()"""
+        """Set whether or not to commit after every execute()."""
         self._execute_command(
             COMMAND.COM_QUERY, "SET AUTOCOMMIT = %s" % self.escape(self.autocommit_mode)
         )
@@ -496,7 +509,7 @@ class Connection:
         self._read_ok_packet()
 
     def escape(self, obj, mapping=None):
-        """Escape whatever value you pass to it.
+        """Escape whatever value is passed.
 
         Non-standard, for internal use; do not use this in your applications.
         """
@@ -510,7 +523,7 @@ class Connection:
         return converters.escape_item(obj, self.charset, mapping=mapping)
 
     def literal(self, obj):
-        """Alias for escape()
+        """Alias for escape().
 
         Non-standard, for internal use; do not use this in your applications.
         """
@@ -523,16 +536,18 @@ class Connection:
 
     def _quote_bytes(self, s):
         if self.server_status & SERVER_STATUS.SERVER_STATUS_NO_BACKSLASH_ESCAPES:
-            return "'%s'" % (s.replace(b"'", b"''").decode("ascii", "surrogateescape"),)
+            return "'{}'".format(
+                s.replace(b"'", b"''").decode("ascii", "surrogateescape")
+            )
         return converters.escape_bytes(s)
 
     def cursor(self, cursor=None):
         """
         Create a new cursor to execute queries with.
 
-        :param cursor: The type of cursor to create; one of :py:class:`Cursor`,
-            :py:class:`SSCursor`, :py:class:`DictCursor`, or :py:class:`SSDictCursor`.
-            None means use Cursor.
+        :param cursor: The type of cursor to create. None means use Cursor.
+        :type cursor: :py:class:`Cursor`, :py:class:`SSCursor`, :py:class:`DictCursor`,
+            or :py:class:`SSDictCursor`.
         """
         if cursor:
             return cursor(self)
@@ -565,6 +580,8 @@ class Connection:
         Check if the server is alive.
 
         :param reconnect: If the connection is closed, reconnect.
+        :type reconnect: boolean
+
         :raise Error: If the connection is closed and reconnect=False.
         """
         if self._sock is None:
@@ -584,13 +601,32 @@ class Connection:
                 raise
 
     def set_charset(self, charset):
+        """Deprecated. Use set_character_set() instead."""
+        # This function has been implemented in old PyMySQL.
+        # But this name is different from MySQLdb.
+        # So we keep this function for compatibility and add
+        # new set_character_set() function.
+        self.set_character_set(charset)
+
+    def set_character_set(self, charset, collation=None):
+        """
+        Set charaset (and collation)
+
+        Send "SET NAMES charset [COLLATE collation]" query.
+        Update Connection.encoding based on charset.
+        """
         # Make sure charset is supported.
         encoding = charset_by_name(charset).encoding
 
-        self._execute_command(COMMAND.COM_QUERY, "SET NAMES %s" % self.escape(charset))
+        if collation:
+            query = f"SET NAMES {charset} COLLATE {collation}"
+        else:
+            query = f"SET NAMES {charset}"
+        self._execute_command(COMMAND.COM_QUERY, query)
         self._read_packet()
         self.charset = charset
         self.encoding = encoding
+        self.collation = collation
 
     def connect(self, sock=None):
         self._closed = False
@@ -614,7 +650,7 @@ class Connection:
                                 (self.host, self.port), self.connect_timeout, **kwargs
                             )
                             break
-                        except (OSError, IOError) as e:
+                        except OSError as e:
                             if e.errno == errno.EINTR:
                                 continue
                             raise
@@ -632,15 +668,30 @@ class Connection:
             self._get_server_information()
             self._request_authentication()
 
+            # Send "SET NAMES" query on init for:
+            # - Ensure charaset (and collation) is set to the server.
+            #   - collation_id in handshake packet may be ignored.
+            # - If collation is not specified, we don't know what is server's
+            #   default collation for the charset. For example, default collation
+            #   of utf8mb4 is:
+            #   - MySQL 5.7, MariaDB 10.x: utf8mb4_general_ci
+            #   - MySQL 8.0: utf8mb4_0900_ai_ci
+            #
+            # Reference:
+            # - https://github.com/PyMySQL/PyMySQL/issues/1092
+            # - https://github.com/wagtail/wagtail/issues/9477
+            # - https://zenn.dev/methane/articles/2023-mysql-collation (Japanese)
+            self.set_character_set(self.charset, self.collation)
+
             if self.sql_mode is not None:
                 c = self.cursor()
                 c.execute("SET sql_mode=%s", (self.sql_mode,))
+                c.close()
 
             if self.init_command is not None:
                 c = self.cursor()
                 c.execute(self.init_command)
                 c.close()
-                self.commit()
 
             if self.autocommit_mode is not None:
                 self.autocommit(self.autocommit_mode)
@@ -652,9 +703,10 @@ class Connection:
                 except:  # noqa
                     pass
 
-            if isinstance(e, (OSError, IOError, socket.error)):
+            if isinstance(e, (OSError, IOError)):
                 exc = err.OperationalError(
-                    2003, "Can't connect to MySQL server on %r (%s)" % (self.host, e)
+                    CR.CR_CONN_HOST_ERROR,
+                    f"Can't connect to MySQL server on {self.host!r} ({e})",
                 )
                 # Keep original exception and traceback to investigate error.
                 exc.original_exception = e
@@ -713,8 +765,6 @@ class Connection:
                 dump_packet(recv_data)
             buff += recv_data
             # https://dev.mysql.com/doc/internals/en/sending-more-than-16mbyte.html
-            if bytes_to_read == 0xFFFFFF:
-                continue
             if bytes_to_read < MAX_PACKET_LEN:
                 break
 
@@ -731,13 +781,13 @@ class Connection:
             try:
                 data = self._rfile.read(num_bytes)
                 break
-            except (IOError, OSError) as e:
+            except OSError as e:
                 if e.errno == errno.EINTR:
                     continue
                 self._force_close()
                 raise err.OperationalError(
                     CR.CR_SERVER_LOST,
-                    "Lost connection to MySQL server during query (%s)" % (e,),
+                    f"Lost connection to MySQL server during query ({e})",
                 )
             except BaseException:
                 # Don't convert unknown exception to MySQLError.
@@ -754,10 +804,10 @@ class Connection:
         self._sock.settimeout(self._write_timeout)
         try:
             self._sock.sendall(data)
-        except IOError as e:
+        except OSError as e:
             self._force_close()
             raise err.OperationalError(
-                CR.CR_SERVER_GONE_ERROR, "MySQL server has gone away (%r)" % (e,)
+                CR.CR_SERVER_GONE_ERROR, f"MySQL server has gone away ({e!r})"
             )
 
     def _read_query_result(self, unbuffered=False):
@@ -898,10 +948,10 @@ class Connection:
             connect_attrs = b""
             for k, v in self._connect_attrs.items():
                 k = k.encode("utf-8")
-                connect_attrs += struct.pack("B", len(k)) + k
+                connect_attrs += _lenenc_int(len(k)) + k
                 v = v.encode("utf-8")
-                connect_attrs += struct.pack("B", len(v)) + v
-            data += struct.pack("B", len(connect_attrs)) + connect_attrs
+                connect_attrs += _lenenc_int(len(v)) + v
+            data += _lenenc_int(len(connect_attrs)) + connect_attrs
 
         self.write_packet(data)
         auth_packet = self._read_packet()
@@ -920,10 +970,7 @@ class Connection:
             ):
                 auth_packet = self._process_auth(plugin_name, auth_packet)
             else:
-                # send legacy handshake
-                data = _auth.scramble_old_password(self.password, self.salt) + b"\0"
-                self.write_packet(data)
-                auth_packet = self._read_packet()
+                raise err.OperationalError("received unknown auth switch request")
         elif auth_packet.is_extra_auth_data():
             if DEBUG:
                 print("received extra data")
@@ -948,10 +995,9 @@ class Connection:
             except AttributeError:
                 if plugin_name != b"dialog":
                     raise err.OperationalError(
-                        2059,
-                        "Authentication plugin '%s'"
-                        " not loaded: - %r missing authenticate method"
-                        % (plugin_name, type(handler)),
+                        CR.CR_AUTH_PLUGIN_CANNOT_LOAD,
+                        f"Authentication plugin '{plugin_name}'"
+                        f" not loaded: - {type(handler)!r} missing authenticate method",
                     )
         if plugin_name == b"caching_sha2_password":
             return _auth.caching_sha2_password_auth(self, auth_packet)
@@ -986,23 +1032,20 @@ class Connection:
                         self.write_packet(resp + b"\0")
                     except AttributeError:
                         raise err.OperationalError(
-                            2059,
-                            "Authentication plugin '%s'"
-                            " not loaded: - %r missing prompt method"
-                            % (plugin_name, handler),
+                            CR.CR_AUTH_PLUGIN_CANNOT_LOAD,
+                            f"Authentication plugin '{plugin_name}'"
+                            f" not loaded: - {handler!r} missing prompt method",
                         )
                     except TypeError:
                         raise err.OperationalError(
-                            2061,
-                            "Authentication plugin '%s'"
-                            " %r didn't respond with string. Returned '%r' to prompt %r"
-                            % (plugin_name, handler, resp, prompt),
+                            CR.CR_AUTH_PLUGIN_ERR,
+                            f"Authentication plugin '{plugin_name}'"
+                            f" {handler!r} didn't respond with string. Returned '{resp!r}' to prompt {prompt!r}",
                         )
                 else:
                     raise err.OperationalError(
-                        2059,
-                        "Authentication plugin '%s' (%r) not configured"
-                        % (plugin_name, handler),
+                        CR.CR_AUTH_PLUGIN_CANNOT_LOAD,
+                        f"Authentication plugin '{plugin_name}' not configured",
                     )
                 pkt = self._read_packet()
                 pkt.check_error()
@@ -1011,7 +1054,8 @@ class Connection:
             return pkt
         else:
             raise err.OperationalError(
-                2059, "Authentication plugin '%s' not configured" % plugin_name
+                CR.CR_AUTH_PLUGIN_CANNOT_LOAD,
+                "Authentication plugin '%s' not configured" % plugin_name,
             )
 
         self.write_packet(data)
@@ -1028,10 +1072,9 @@ class Connection:
                 handler = plugin_class(self)
             except TypeError:
                 raise err.OperationalError(
-                    2059,
-                    "Authentication plugin '%s'"
-                    " not loaded: - %r cannot be constructed with connection object"
-                    % (plugin_name, plugin_class),
+                    CR.CR_AUTH_PLUGIN_CANNOT_LOAD,
+                    f"Authentication plugin '{plugin_name}'"
+                    f" not loaded: - {plugin_class!r} cannot be constructed with connection object",
                 )
         else:
             handler = None
@@ -1215,7 +1258,10 @@ class MySQLResult:
         if (
             not ok_packet.is_ok_packet()
         ):  # pragma: no cover - upstream induced protocol error
-            raise err.OperationalError(2014, "Commands Out of Sync")
+            raise err.OperationalError(
+                CR.CR_COMMANDS_OUT_OF_SYNC,
+                "Commands Out of Sync",
+            )
         self._read_ok_packet(ok_packet)
 
     def _check_packet_is_eof(self, packet):
@@ -1224,7 +1270,8 @@ class MySQLResult:
         # TODO: Support CLIENT.DEPRECATE_EOF
         # 1) Add DEPRECATE_EOF to CAPABILITIES
         # 2) Mask CAPABILITIES with server_capabilities
-        # 3) if server_capabilities & CLIENT.DEPRECATE_EOF: use OKPacketWrapper instead of EOFPacketWrapper
+        # 3) if server_capabilities & CLIENT.DEPRECATE_EOF:
+        #    use OKPacketWrapper instead of EOFPacketWrapper
         wp = EOFPacketWrapper(packet)
         self.warning_count = wp.warning_count
         self.has_next = wp.has_next
@@ -1258,7 +1305,20 @@ class MySQLResult:
         # in fact, no way to stop MySQL from sending all the data after
         # executing a query, so we just spin, and wait for an EOF packet.
         while self.unbuffered_active:
-            packet = self.connection._read_packet()
+            try:
+                packet = self.connection._read_packet()
+            except err.OperationalError as e:
+                if e.args[0] in (
+                    ER.QUERY_TIMEOUT,
+                    ER.STATEMENT_TIMEOUT,
+                ):
+                    # if the query timed out we can simply ignore this error
+                    self.unbuffered_active = False
+                    self.connection = None
+                    return
+
+                raise
+
             if self._check_packet_is_eof(packet):
                 self.unbuffered_active = False
                 self.connection = None  # release reference to kill cyclic reference.
@@ -1348,7 +1408,7 @@ class LoadLocalFile:
         """Send data packets from the local file to the server"""
         if not self.connection._sock:
             raise err.InterfaceError(0, "")
-        conn = self.connection
+        conn: Connection = self.connection
 
         try:
             with open(self.filename, "rb") as open_file:
@@ -1360,8 +1420,12 @@ class LoadLocalFile:
                     if not chunk:
                         break
                     conn.write_packet(chunk)
-        except IOError:
-            raise err.OperationalError(1017, f"Can't find file '{self.filename}'")
+        except OSError:
+            raise err.OperationalError(
+                ER.FILE_NOT_FOUND,
+                f"Can't find file '{self.filename}'",
+            )
         finally:
-            # send the empty packet to signify we are done sending data
-            conn.write_packet(b"")
+            if not conn._closed:
+                # send the empty packet to signify we are done sending data
+                conn.write_packet(b"")

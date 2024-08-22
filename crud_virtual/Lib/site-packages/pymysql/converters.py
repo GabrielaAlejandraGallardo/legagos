@@ -27,11 +27,7 @@ def escape_item(val, charset, mapping=None):
 
 
 def escape_dict(val, charset, mapping=None):
-    n = {}
-    for k, v in val.items():
-        quoted = escape_item(v, charset, mapping)
-        n[k] = quoted
-    return n
+    raise TypeError("dict can not be used as parameter")
 
 
 def escape_sequence(val, charset, mapping=None):
@@ -56,7 +52,7 @@ def escape_int(value, mapping=None):
 
 def escape_float(value, mapping=None):
     s = repr(value)
-    if s in ("inf", "nan"):
+    if s in ("inf", "-inf", "nan"):
         raise ProgrammingError("%s can not be used with MySQL" % s)
     if "e" not in s:
         s += "e0"
@@ -120,7 +116,10 @@ def escape_time(obj, mapping=None):
 
 def escape_datetime(obj, mapping=None):
     if obj.microsecond:
-        fmt = "'{0.year:04}-{0.month:02}-{0.day:02} {0.hour:02}:{0.minute:02}:{0.second:02}.{0.microsecond:06}'"
+        fmt = (
+            "'{0.year:04}-{0.month:02}-{0.day:02}"
+            + " {0.hour:02}:{0.minute:02}:{0.second:02}.{0.microsecond:06}'"
+        )
     else:
         fmt = "'{0.year:04}-{0.month:02}-{0.day:02} {0.hour:02}:{0.minute:02}:{0.second:02}'"
     return fmt.format(obj)
@@ -155,18 +154,17 @@ DATETIME_RE = re.compile(
 def convert_datetime(obj):
     """Returns a DATETIME or TIMESTAMP column value as a datetime object:
 
-      >>> datetime_or_None('2007-02-25 23:06:20')
+      >>> convert_datetime('2007-02-25 23:06:20')
       datetime.datetime(2007, 2, 25, 23, 6, 20)
-      >>> datetime_or_None('2007-02-25T23:06:20')
+      >>> convert_datetime('2007-02-25T23:06:20')
       datetime.datetime(2007, 2, 25, 23, 6, 20)
 
-    Illegal values are returned as None:
+    Illegal values are returned as str:
 
-      >>> datetime_or_None('2007-02-31T23:06:20') is None
-      True
-      >>> datetime_or_None('0000-00-00 00:00:00') is None
-      True
-
+      >>> convert_datetime('2007-02-31T23:06:20')
+      '2007-02-31T23:06:20'
+      >>> convert_datetime('0000-00-00 00:00:00')
+      '0000-00-00 00:00:00'
     """
     if isinstance(obj, (bytes, bytearray)):
         obj = obj.decode("ascii")
@@ -189,15 +187,15 @@ TIMEDELTA_RE = re.compile(r"(-)?(\d{1,3}):(\d{1,2}):(\d{1,2})(?:.(\d{1,6}))?")
 def convert_timedelta(obj):
     """Returns a TIME column as a timedelta object:
 
-      >>> timedelta_or_None('25:06:17')
-      datetime.timedelta(1, 3977)
-      >>> timedelta_or_None('-25:06:17')
-      datetime.timedelta(-2, 83177)
+      >>> convert_timedelta('25:06:17')
+      datetime.timedelta(days=1, seconds=3977)
+      >>> convert_timedelta('-25:06:17')
+      datetime.timedelta(days=-2, seconds=82423)
 
-    Illegal values are returned as None:
+    Illegal values are returned as string:
 
-      >>> timedelta_or_None('random crap') is None
-      True
+      >>> convert_timedelta('random crap')
+      'random crap'
 
     Note that MySQL always returns TIME columns as (+|-)HH:MM:SS, but
     can accept values as (+|-)DD HH:MM:SS. The latter format will not
@@ -236,15 +234,15 @@ TIME_RE = re.compile(r"(\d{1,2}):(\d{1,2}):(\d{1,2})(?:.(\d{1,6}))?")
 def convert_time(obj):
     """Returns a TIME column as a time object:
 
-      >>> time_or_None('15:06:17')
+      >>> convert_time('15:06:17')
       datetime.time(15, 6, 17)
 
-    Illegal values are returned as None:
+    Illegal values are returned as str:
 
-      >>> time_or_None('-25:06:17') is None
-      True
-      >>> time_or_None('random crap') is None
-      True
+      >>> convert_time('-25:06:17')
+      '-25:06:17'
+      >>> convert_time('random crap')
+      'random crap'
 
     Note that MySQL always returns TIME columns as (+|-)HH:MM:SS, but
     can accept values as (+|-)DD HH:MM:SS. The latter format will not
@@ -279,16 +277,15 @@ def convert_time(obj):
 def convert_date(obj):
     """Returns a DATE column as a date object:
 
-      >>> date_or_None('2007-02-26')
+      >>> convert_date('2007-02-26')
       datetime.date(2007, 2, 26)
 
-    Illegal values are returned as None:
+    Illegal values are returned as str:
 
-      >>> date_or_None('2007-02-31') is None
-      True
-      >>> date_or_None('0000-00-00') is None
-      True
-
+      >>> convert_date('2007-02-31')
+      '2007-02-31'
+      >>> convert_date('0000-00-00')
+      '0000-00-00'
     """
     if isinstance(obj, (bytes, bytearray)):
         obj = obj.decode("ascii")
@@ -362,3 +359,5 @@ decoders = {
 conversions = encoders.copy()
 conversions.update(decoders)
 Thing2Literal = escape_str
+
+# Run doctests with `pytest --doctest-modules pymysql/converters.py`

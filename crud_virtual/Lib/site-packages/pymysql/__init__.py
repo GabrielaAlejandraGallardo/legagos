@@ -21,6 +21,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
+
 import sys
 
 from .constants import FIELD_TYPE
@@ -46,12 +47,31 @@ from .times import (
     TimestampFromTicks,
 )
 
+# PyMySQL version.
+# Used by setuptools and connection_attrs
+VERSION = (1, 1, 1, "final", 1)
+VERSION_STRING = "1.1.1"
 
-VERSION = (1, 0, 2, None)
-if VERSION[3] is not None:
-    VERSION_STRING = "%d.%d.%d_%s" % VERSION
-else:
-    VERSION_STRING = "%d.%d.%d" % VERSION[:3]
+### for mysqlclient compatibility
+### Django checks mysqlclient version.
+version_info = (1, 4, 6, "final", 1)
+__version__ = "1.4.6"
+
+
+def get_client_info():  # for MySQLdb compatibility
+    return __version__
+
+
+def install_as_MySQLdb():
+    """
+    After this function is called, any application that imports MySQLdb
+    will unwittingly actually use pymysql.
+    """
+    sys.modules["MySQLdb"] = sys.modules["pymysql"]
+
+
+# end of mysqlclient compatibility code
+
 threadsafety = 1
 apilevel = "2.0"
 paramstyle = "pyformat"
@@ -109,34 +129,12 @@ def Binary(x):
     return bytes(x)
 
 
-Connect = connect = Connection = connections.Connection
-
-
-def get_client_info():  # for MySQLdb compatibility
-    version = VERSION
-    if VERSION[3] is None:
-        version = VERSION[:3]
-    return ".".join(map(str, version))
-
-
-# we include a doctored version_info here for MySQLdb compatibility
-version_info = (1, 4, 0, "final", 0)
-
-NULL = "NULL"
-
-__version__ = get_client_info()
-
-
 def thread_safe():
     return True  # match MySQLdb.thread_safe()
 
 
-def install_as_MySQLdb():
-    """
-    After this function is called, any application that imports MySQLdb or
-    _mysql will unwittingly actually use pymysql.
-    """
-    sys.modules["MySQLdb"] = sys.modules["_mysql"] = sys.modules["pymysql"]
+Connect = connect = Connection = connections.Connection
+NULL = "NULL"
 
 
 __all__ = [

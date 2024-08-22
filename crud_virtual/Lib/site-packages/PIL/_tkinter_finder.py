@@ -1,9 +1,12 @@
 """ Find compiled module linking to Tcl / Tk libraries
 """
+
+from __future__ import annotations
+
 import sys
 import tkinter
-import warnings
-from tkinter import _tkinter as tk
+
+tk = getattr(tkinter, "_tkinter")
 
 try:
     if hasattr(sys, "pypy_find_executable"):
@@ -16,10 +19,3 @@ except AttributeError:
     TKINTER_LIB = None
 
 tk_version = str(tkinter.TkVersion)
-if tk_version == "8.4":
-    warnings.warn(
-        "Support for Tk/Tcl 8.4 is deprecated and will be removed"
-        " in Pillow 10 (2023-07-01). Please upgrade to Tk/Tcl 8.5 "
-        "or newer.",
-        DeprecationWarning,
-    )

@@ -1,6 +1,7 @@
 """
 Implements auth methods
 """
+
 from .err import OperationalError
 
 
@@ -141,7 +142,8 @@ def sha2_rsa_encrypt(password, salt, public_key):
     """
     if not _have_cryptography:
         raise RuntimeError(
-            "'cryptography' package is required for sha256_password or caching_sha2_password auth methods"
+            "'cryptography' package is required for sha256_password or"
+            + " caching_sha2_password auth methods"
         )
     message = _xor_password(password + b"\0", salt)
     rsa_key = serialization.load_pem_public_key(public_key, default_backend())
@@ -241,7 +243,7 @@ def caching_sha2_password_auth(conn, pkt):
         return pkt
 
     if n != 4:
-        raise OperationalError("caching sha2: Unknwon result for fast auth: %s" % n)
+        raise OperationalError("caching sha2: Unknown result for fast auth: %s" % n)
 
     if DEBUG:
         print("caching sha2: Trying full auth...")

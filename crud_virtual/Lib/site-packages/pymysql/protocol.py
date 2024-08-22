@@ -35,7 +35,7 @@ def dump_packet(data):  # pragma: no cover
     dump_data = [data[i : i + 16] for i in range(0, min(len(data), 256), 16)]
     for d in dump_data:
         print(
-            " ".join("{:02X}".format(x) for x in d)
+            " ".join(f"{x:02X}" for x in d)
             + "   " * (16 - len(d))
             + " " * 2
             + "".join(printable(x) for x in d)
@@ -65,8 +65,7 @@ class MysqlPacket:
         if len(result) != size:
             error = (
                 "Result length not requested length:\n"
-                "Expected=%s.  Actual=%s.  Position: %s.  Data Length: %s"
-                % (size, len(result), self._position, len(self._data))
+                f"Expected={size}.  Actual={len(result)}.  Position: {self._position}.  Data Length: {len(self._data)}"
             )
             if DEBUG:
                 print(error)
@@ -89,8 +88,7 @@ class MysqlPacket:
         new_position = self._position + length
         if new_position < 0 or new_position > len(self._data):
             raise Exception(
-                "Invalid advance amount (%s) for cursor.  "
-                "Position=%s" % (length, new_position)
+                f"Invalid advance amount ({length}) for cursor.  Position={new_position}"
             )
         self._position = new_position
 
@@ -275,7 +273,7 @@ class FieldDescriptorPacket(MysqlPacket):
         return self.length
 
     def __str__(self):
-        return "%s %r.%r.%r, type=%s, flags=%x" % (
+        return "{} {!r}.{!r}.{!r}, type={}, flags={:x}".format(
             self.__class__,
             self.db,
             self.table_name,
